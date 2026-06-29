@@ -8,6 +8,7 @@ const cors = require("cors");
 
 const boardsRouter = require("./routes/boards");
 const cardsRouter = require("./routes/cards");
+const authRouter = require("./routes/auth");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,6 +23,7 @@ app.get("/", (req, res) => {
 });
 
 // --- Feature routes ---
+app.use("/auth", authRouter); // stretch: user accounts
 app.use("/boards", boardsRouter);
 app.use("/cards", cardsRouter);
 

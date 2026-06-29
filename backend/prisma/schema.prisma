@@ -1,6 +1,7 @@
 // Kudos Board — Prisma schema
 // Implements Section 3 (Database Schema Spec) of planning.md.
 // Board (1) ──< (many) Card, with cascade delete.
+// Stretch (M3): User (auth), Comment, plus pin fields and user ownership.
 
 generator client {
   provider = "prisma-client-js"
@@ -19,6 +20,10 @@ model Board {
   imageUrl  String? // placeholder default applied in the app layer
   createdAt DateTime @default(now()) // used for the "Recent" filter
   cards     Card[]
+
+  // Stretch (auth): optional owner. Null = guest/anonymous board.
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
 model Card {
@@ -30,4 +35,39 @@ model Card {
   createdAt DateTime @default(now())
   boardId   Int
   board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  // Stretch (pinned cards): pinned floats to the top; pinnedAt orders pins.
+  pinned   Boolean   @default(false)
+  pinnedAt DateTime?
+
+  // Stretch (auth): optional owner. Null = guest card.
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Stretch (comments): a card has many comments; cascade-delete with the card.
+  comments Comment[]
+}
+
+// Stretch (auth): a registered user. passwordHash is bcrypt and never returned.
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  boards       Board[]
+  cards        Card[]
+  comments     Comment[]
+}
+
+// Stretch (comments): a comment on a card. author is free-text for guests;
+// userId links to a User when the comment was posted while logged in.
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  author    String?
+  createdAt DateTime @default(now())
+  cardId    Int
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }

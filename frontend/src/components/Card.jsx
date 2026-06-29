@@ -1,7 +1,12 @@
 // One kudos card: message, gif, upvote count + button, delete button.
-export default function Card({ card, onUpvote, onDelete }) {
+// Stretch: Pin button (pinned cards float to the top, with a visual indicator)
+// and a Comments button that opens the CommentModal.
+export default function Card({ card, onUpvote, onDelete, onPin, onComments }) {
   return (
-    <article className="card">
+    <article className={`card ${card.pinned ? 'is-pinned' : ''}`}>
+      {card.pinned && (
+        <span className="card-pin-badge" aria-label="Pinned card">📌 Pinned</span>
+      )}
       <div className="card-gif">
         <img src={card.gifUrl} alt="" loading="lazy" />
       </div>
@@ -17,6 +22,21 @@ export default function Card({ card, onUpvote, onDelete }) {
           aria-label="Upvote card"
         >
           ▲ {card.upvotes}
+        </button>
+        <button
+          type="button"
+          className={`btn btn-ghost ${card.pinned ? 'is-active' : ''}`}
+          onClick={() => onPin(card.id)}
+          aria-pressed={card.pinned}
+        >
+          {card.pinned ? 'Unpin' : 'Pin'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => onComments(card)}
+        >
+          💬 Comments
         </button>
         <button
           type="button"

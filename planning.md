@@ -7,6 +7,10 @@
 
 **Stack:** React 19 + Vite (frontend) · Express + Prisma + PostgreSQL (backend) · GIPHY API for gifs.
 
+**Stretch features (Milestone 3):** User Accounts (JWT auth + bcrypt), Comments,
+Dark Mode, and Pinned Cards. Spec additions for these are folded into each section
+below and marked *(stretch: …)*.
+
 ---
 
 ## Section 1: Component Architecture
@@ -54,6 +58,9 @@ App                          (routing + global board/theme state)
 | **Card** | Show one card; upvote; delete | `<div>`, message, gif, upvote count + btn, delete btn | `card`, `onUpvote(id)`, `onDelete(id)` (CardGrid) | none | click upvote; click delete |
 | **CreateCardModal** | Form to create a card | `<Modal>` wrapping `<form>`: message, GIPHY search + pick, author | `isOpen`, `onClose()`, `onCreate(card)` (BoardPage) | controlled fields, `gifQuery`, `gifResults`, `selectedGif`, `manualUrl`, `searching`, `submitting`, `formError` | type, search gif, pick gif, submit, cancel |
 | **Modal** *(new, M1)* | Reusable overlay shell (backdrop, close btn, Escape) | `<div class=modal-backdrop>` → `<div class=modal>` + children | `isOpen`, `onClose()`, `title`, `children` (the two create modals) | none | backdrop click / Escape / close btn → `onClose` |
+| **ThemeToggle** *(stretch: dark mode)* | Switch light/dark theme | `<button>` inside `Header` | reads `ThemeContext` | none (context) | click → `toggleTheme()` |
+| **AuthModal** *(stretch: auth)* | Login / Signup form in a modal | `<Modal>` + `<form>` (username, password, mode switch) | `isOpen`, `onClose()` (Header) | `mode`, `username`, `password`, `formError`, `submitting` | submit → context `login`/`signup`; toggle login↔signup |
+| **CommentModal** *(stretch: comments)* | View a card + its comments; add a comment | `<Modal>`: card message/gif/author, comment list, add-comment form | `isOpen`, `onClose()`, `card` (BoardPage) | `comments`, `content`, `author`, `loading`, `formError` | submit comment → POST then refresh list |
 
 > **Note (updated M1):** Routing uses `react-router-dom` v7 (installed in
 > Milestone 1). Routes: `/` → `HomePage` (with `Banner`), `/boards/:boardId` →
@@ -69,6 +76,16 @@ App                          (routing + global board/theme state)
 > bodies are swapped for `fetch` calls and the components stay unchanged. GIPHY
 > search lives in `src/api/giphy.js` (needs `VITE_GIPHY_API_KEY`; falls back to a
 > manual gif-URL input when no key is set).
+>
+> **Stretch context providers (M3):** `AuthProvider` (`src/context/AuthContext.jsx`)
+> owns `user`/`token`, exposes `login/signup/logout`, and restores the session from a
+> stored JWT on load (via `GET /auth/me`). `ThemeProvider`
+> (`src/context/ThemeContext.jsx`) owns `theme`, persists it to localStorage, and
+> sets `data-theme` on `<html>`. Both wrap `<App>` in `main.jsx` (inside
+> `BrowserRouter`). `Header` gains a `ThemeToggle` and the auth UI (Login/Signup when
+> logged out; username + Logout when logged in). `Card` gains Pin and Comments
+> buttons; `BoardFilter` gains a "Mine" option (visible only when logged in);
+> `BoardCard` hides Delete on boards the current user doesn't own.
 
 ---
 
@@ -139,6 +156,46 @@ Delete a card.
 > **Filtering & search live on `GET /boards`** via query params (above). Frontend
 > may instead filter/search client-side; if so, note that change here at impl time.
 
+### Stretch endpoints (Milestone 3 stretch features)
+
+#### Auth *(user accounts)*
+- **`POST /auth/signup`** — body `{ username (string, required), password (string, required) }`.
+  Success `201` → `{ token, user: { id, username, createdAt } }`. Errors: `400` missing
+  fields; `409` username already taken.
+- **`POST /auth/login`** — body `{ username, password }`. Success `200` → `{ token, user }`.
+  Errors: `400` missing fields; `401` invalid credentials.
+- **`GET /auth/me`** — header `Authorization: Bearer <token>`. Success `200` →
+  `{ id, username, createdAt }`. Errors: `401` missing/invalid token.
+
+  Auth uses a JWT bearer token signed with `JWT_SECRET`. The password is bcrypt-hashed;
+  `passwordHash` is never included in any response.
+
+#### Ownership & "my boards"
+- **`GET /boards?mine=true`** — with a valid bearer token, returns only the current
+  user's boards. `401` if `mine=true` without a token.
+- **`POST /boards` / `POST /cards` / `POST /boards/:id/cards`** — accept an optional
+  bearer token; when present, the created board/card is associated with that user
+  (`userId`). Anonymous creation (no token) is still allowed. Response objects gain a
+  nullable `userId`.
+- **`DELETE /boards/:id`** — if the board has an owner (`userId` set), only that user may
+  delete it (`403` otherwise). Guest boards (`userId` null) remain deletable by anyone.
+
+#### Pinned cards
+- **`PATCH /cards/:id/pin`** — toggles a card's pinned state. Body: none. Success `200` →
+  updated card (`pinned` flipped; `pinnedAt` = now when pinning, null when unpinning).
+  Errors: `404` if not found. `GET /boards/:id/cards` returns pinned cards first
+  (most-recently-pinned first), then unpinned by `createdAt` desc.
+
+#### Comments
+- **`GET /cards/:id/comments`** — success `200` →
+  `[ { id, content, author, createdAt, cardId, userId } ]`. `404` if card not found.
+- **`POST /cards/:id/comments`** — body `{ content (string, required), author (string, optional) }`;
+  optional bearer token associates the comment with a user. Success `201` → created comment.
+  Errors: `400` if `content` missing; `404` if card not found.
+
+> Card response objects now also include `pinned` (bool), `pinnedAt` (datetime|null),
+> and `userId` (int|null) in every cards endpoint.
+
 ---
 
 ## Section 3: Database Schema Spec
@@ -170,6 +227,44 @@ Two models. `Board` has many `Card`s; deleting a board cascades to its cards.
 
 **Relationship:** `Board (1) ──< (many) Card`. `onDelete: Cascade` so deleting a board removes its cards.
 
+### Stretch additions (Milestone 3 stretch features)
+
+#### User *(auth)*
+| field | type | required | notes |
+|---|---|---|---|
+| `id` | Int | ✅ | `@id @default(autoincrement())` |
+| `username` | String | ✅ | `@unique` |
+| `passwordHash` | String | ✅ | bcrypt hash — never returned by the API |
+| `createdAt` | DateTime | ✅ | `@default(now())` |
+| `boards` / `cards` / `comments` | relations | — | content this user created |
+
+#### Comment *(comments)*
+| field | type | required | notes |
+|---|---|---|---|
+| `id` | Int | ✅ | `@id @default(autoincrement())` |
+| `content` | String | ✅ | comment body |
+| `author` | String | optional | `String?` — free-text author when not logged in |
+| `createdAt` | DateTime | ✅ | `@default(now())` |
+| `cardId` | Int | ✅ | FK → Card, `onDelete: Cascade` |
+| `userId` | Int | optional | `Int?` FK → User, `onDelete: SetNull` (null for guests) |
+
+#### Board — added fields
+| field | type | required | notes |
+|---|---|---|---|
+| `userId` | Int | optional | `Int?` FK → User; null = guest/anonymous board (for owner-only delete) |
+
+#### Card — added fields
+| field | type | required | notes |
+|---|---|---|---|
+| `pinned` | Boolean | ✅ | `@default(false)` — pinned-to-top state |
+| `pinnedAt` | DateTime | optional | `DateTime?` — when pinned; orders pinned cards (most recent first) |
+| `userId` | Int | optional | `Int?` FK → User; null = guest card |
+| `comments` | Comment[] | — | one-to-many; cascade-deletes with the card |
+
+**New relationships:** `User (1) ──< (many) Board / Card / Comment` (all
+`onDelete: SetNull` so deleting a user leaves their content as guest content);
+`Card (1) ──< (many) Comment` (`onDelete: Cascade`).
+
 ---
 
 ## Section 4: State Architecture
@@ -190,7 +285,13 @@ Two models. `Board` has many `Card`s; deleting a board cascades to its cards.
 | `submitting` *(M1)* | bool / `false` | Create*Modal | true while the async create call is in flight |
 | `loading` | bool / `false` | HomePage, BoardPage | before/after each fetch |
 | `error` | string / `""` | HomePage, BoardPage | a fetch fails |
-| `theme` *(stretch)* | `"light"`/`"dark"` | App | dark-mode toggle; persisted to localStorage |
+| `user` *(stretch: auth)* | `User \| null` / `null` | AuthContext | login/signup success; logout; session restore on load |
+| `token` *(stretch: auth)* | `string \| null` / from localStorage | AuthContext | login/signup; cleared on logout |
+| `authLoading` *(stretch: auth)* | bool / `true` | AuthContext | while restoring the session via `GET /auth/me` |
+| `isAuthOpen` *(stretch: auth)* | bool / `false` | Header | Login/Signup click (open) / modal close |
+| `theme` *(stretch: dark mode)* | `"light"`/`"dark"` / localStorage→`"light"` | ThemeContext | ThemeToggle click; persisted, sets `data-theme` on `<html>` |
+| `commentCard` *(stretch: comments)* | `Card \| null` / `null` | BoardPage | Comments button click / modal close |
+| `comments` *(stretch: comments)* | `Comment[]` / `[]` | CommentModal | on open (GET comments); after POST a comment |
 
 **Data flow:** State lives in the page that owns the data (HomePage owns `boards`,
 BoardPage owns `cards`). Children receive data via props and report user actions
@@ -284,15 +385,73 @@ validation in `backend/middleware/validate.js`; schema in `backend/prisma/schema
   status codes above; unhandled DB failures return `500 { "error": "Internal server error" }`.
 
 ## Final Spec Reconciliation — Full Pipeline (Milestone 3)
-<!-- Fill in after connecting frontend + backend. -->
+
+The Milestone 1 localStorage mock (`src/api/client.js`) was replaced with real
+`fetch` calls to the Express backend. Because the mock mirrored the Section 2
+contracts exactly, the consuming components (HomePage, BoardPage, the modals) needed
+no logic changes for the core features — only the client's function bodies changed.
+Verified end-to-end with both servers running (backend smoke test 26/26; full-pipeline
+integration test 8/8, including pinned-card ordering and the comment round-trip).
+Frontend `npm run lint` and `npm run build` both pass clean.
+
 ### Frontend fetch calls verified against API contracts
-- `GET /boards` (home page load):
-- `POST /boards` (create board):
-- `DELETE /boards/:id`:
-- `GET /boards/:id/cards`:
-- `POST /cards`:
-- `PATCH /cards/:id/upvote`:
-- `DELETE /cards/:id`:
+- `GET /boards` (home page load): ✅ request/response match spec. Filter/search/mine
+  map to `?category`, `?recent=true`, `?search`, `?mine=true`.
+- `POST /boards` (create board): ✅ sends `{ title, category, author, imageUrl }`;
+  optional bearer token associates the owner. 201 + board (now includes `userId`).
+- `DELETE /boards/:id`: ✅ matches. Owner-only enforced server-side (401/403); the UI
+  also hides Delete on boards the current user doesn't own.
+- `GET /boards/:id/cards`: ✅ matches; cards returned pinned-first, then newest.
+- `POST /cards`: ✅ sends `{ message, gifUrl, author, boardId }`; 201 + card.
+- `PATCH /cards/:id/upvote`: ✅ matches; 200 + updated card.
+- `DELETE /cards/:id`: ✅ matches; 200 + `{ message }`.
+- **Stretch** `PATCH /cards/:id/pin`: ✅ 200 + updated card (`pinned`/`pinnedAt`).
+- **Stretch** `GET|POST /cards/:id/comments`: ✅ list/create verified.
+- **Stretch** `POST /auth/signup|login`, `GET /auth/me`: ✅ token stored in
+  localStorage; session restored on load via `/auth/me`.
+
 ### Integration gaps found and resolved
+- **Stale frontend `node_modules`.** This machine's `node_modules` predated the
+  Milestone-1 addition of `react-router-dom`, so `npm run build` failed to resolve it.
+  Resolved by running `npm install` in `frontend/` (no code change). Teammates pulling
+  this branch should do the same.
+- **Pin reorder needs a re-fetch.** Pinning changes sort order (pinned-first, newest-
+  pin-first), which a local state swap can't reproduce. `BoardPage.handlePin` re-fetches
+  the board's cards after `PATCH /pin` so the grid order always matches the backend.
+- No contract mismatches: field names (`imageUrl`, `gifUrl`, `upvotes`, `userId`,
+  `pinned`, `pinnedAt`) are identical across the frontend, the contracts, and the
+  Prisma schema.
+
 ### State architecture verified
+- ✅ Section 4 matches the implementation. New state added this milestone is documented
+  there: `user`/`authLoading` (AuthContext), `theme` (ThemeContext), `isAuthOpen`
+  (Header), `commentCard` (BoardPage), `comments` (CommentModal). Auth/theme moved into
+  React Context (rather than App-local state) so Header, pages, and modals can all read
+  them — an intentional refinement of the "owned by App" note in the original spec.
+
 ### Final code-spec parity assessment
+- ✅ Yes — `planning.md` accurately describes the system as built. All four required
+  feature areas plus four stretch features (User Accounts, Comments, Dark Mode, Pinned
+  Cards) are implemented and reflected in Sections 1–4.
+
+## Decisions Log — Stretch Features (Milestone 3)
+- **Auth approach**: JWT (signed with `JWT_SECRET`) + bcrypt password hashing
+  (`bcryptjs`). Token stored in `localStorage` and sent as `Authorization: Bearer`.
+  `optionalAuth` middleware lets boards/cards/comments be created anonymously (guest
+  content has `userId = null`) while still associating content when logged in — this
+  satisfies "anonymous cards still allowed."
+- **Owner-only delete**: enforced server-side (owned board → 401 without a token, 403
+  for a non-owner) AND in the UI (Delete hidden unless `board.userId` is null or matches
+  the current user). Guest boards (`userId` null) remain deletable by anyone.
+- **Dark mode**: implemented via CSS custom properties. `ThemeContext` sets
+  `data-theme="dark"` on `<html>`; a single `:root[data-theme="dark"]` block overrides
+  the color variables, so every existing component themed automatically. Persisted to
+  localStorage; defaults to light on first visit. Dark palette chosen for ≥4.5:1 contrast.
+- **Pinned cards**: `pinned` (bool) + `pinnedAt` (datetime) on Card. Ordering is done by
+  the backend (`pinned desc, pinnedAt desc, createdAt desc`) so "most recent pin first"
+  is authoritative; the board page re-fetches after a pin toggle to reflect it.
+- **Comments**: separate `Comment` model (cascade-deletes with its card). Viewed/added
+  in a `CommentModal` reusing the shared `Modal`. Logged-in users comment under their
+  username; guests may supply a free-text author.
+- **New components** (added to Section 1): `ThemeToggle`, `AuthModal`, `CommentModal`;
+  **new context providers**: `AuthProvider`, `ThemeProvider` (wrap `<App>` in `main.jsx`).
