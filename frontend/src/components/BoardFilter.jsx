@@ -1,5 +1,6 @@
 // Category filter for the board grid. Stateless: the active value and change
-// handler are owned by HomePage.
+// handler are owned by HomePage. Stretch: the "Mine" filter appears only when a
+// user is logged in (showMine), per the user-accounts feature.
 const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'recent', label: 'Recent' },
@@ -8,10 +9,12 @@ const FILTERS = [
   { value: 'inspiration', label: 'Inspiration' },
 ];
 
-export default function BoardFilter({ active, onChange }) {
+export default function BoardFilter({ active, onChange, showMine = false }) {
+  const filters = showMine ? [...FILTERS, { value: 'mine', label: 'My Boards' }] : FILTERS;
+
   return (
     <div className="board-filter" role="group" aria-label="Filter boards by category">
-      {FILTERS.map((f) => (
+      {filters.map((f) => (
         <button
           key={f.value}
           type="button"

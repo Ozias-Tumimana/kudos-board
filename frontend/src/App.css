@@ -443,6 +443,113 @@
   width: auto;
 }
 
+/* ---- header actions / auth / theme (stretch) ----------------------------- */
+.header-inner {
+  justify-content: space-between;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-user {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.theme-toggle {
+  font-size: 1.2rem;
+}
+
+/* ---- pinned cards (stretch) ----------------------------------------------- */
+.card {
+  position: relative;
+}
+
+.card.is-pinned {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary), var(--shadow);
+}
+
+.card-pin-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.card-actions {
+  flex-wrap: wrap;
+}
+
+.btn-ghost.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* ---- comments modal (stretch) --------------------------------------------- */
+.comment-card-preview {
+  text-align: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.comment-card-gif {
+  max-height: 160px;
+  width: auto;
+  margin: 0 auto 0.75rem;
+  border-radius: 8px;
+}
+
+.comment-heading {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.comment-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+
+.comment-body {
+  margin: 0;
+}
+
+.comment-author {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.comment-form {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
 /* ---- responsive ----------------------------------------------------------- */
 @media (max-width: 600px) {
   .toolbar {

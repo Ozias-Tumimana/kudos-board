@@ -52,7 +52,13 @@ Schema Spec in [`../planning.md`](../planning.md) (Sections 2 & 3).
 | `POST` | `/boards/:id/cards` | Create a card on a board (boardId from path). |
 | `POST` | `/cards` | Create a card (boardId in body). |
 | `PATCH` | `/cards/:id/upvote` | Increment a card's upvote count by 1. |
+| `PATCH` | `/cards/:id/pin` | Toggle a card's pinned state (stretch: pinned cards). |
 | `DELETE` | `/cards/:id` | Delete a card. |
+| `GET` | `/cards/:id/comments` | List a card's comments (stretch: comments). |
+| `POST` | `/cards/:id/comments` | Add a comment to a card (`content` required). |
+| `POST` | `/auth/signup` | Create an account → `{ token, user }` (stretch: auth). |
+| `POST` | `/auth/login` | Log in → `{ token, user }`. |
+| `GET` | `/auth/me` | Current user from a `Bearer` token. |
 
 See `../planning.md` Section 2 for full request/response/error contracts.
 

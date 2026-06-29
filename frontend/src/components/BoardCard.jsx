@@ -7,8 +7,11 @@ const CATEGORY_LABELS = {
 };
 
 // One board tile: image, title, category, optional author, View + Delete.
-export default function BoardCard({ board, onDelete }) {
+// Stretch (auth): owned boards (userId set) only show Delete to their owner;
+// guest boards (userId null) stay deletable by anyone.
+export default function BoardCard({ board, onDelete, currentUserId }) {
   const navigate = useNavigate();
+  const canDelete = board.userId == null || board.userId === currentUserId;
 
   return (
     <article className="board-card">
@@ -36,13 +39,15 @@ export default function BoardCard({ board, onDelete }) {
         >
           View Board
         </button>
-        <button
-          type="button"
-          className="btn btn-danger"
-          onClick={() => onDelete(board.id)}
-        >
-          Delete
-        </button>
+        {canDelete && (
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => onDelete(board.id)}
+          >
+            Delete
+          </button>
+        )}
       </div>
     </article>
   );
