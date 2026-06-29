@@ -52,10 +52,23 @@ App                          (routing + global board/theme state)
 | **CreateCardButton** | Trigger create-card modal | `<button>` | `onClick` (BoardPage) | none | click |
 | **CardGrid** | Lay out cards in a grid | `<div class=grid>`, maps `Card` | `cards`, `onUpvote(id)`, `onDelete(id)` (BoardPage) | none | none |
 | **Card** | Show one card; upvote; delete | `<div>`, message, gif, upvote count + btn, delete btn | `card`, `onUpvote(id)`, `onDelete(id)` (CardGrid) | none | click upvote; click delete |
-| **CreateCardModal** | Form to create a card | `<form>`: message, GIPHY search + pick, author | `isOpen`, `onClose()`, `onCreate(card)` (BoardPage) | controlled fields, `gifResults`, `selectedGif`, `formError` | type, search gif, pick gif, submit, cancel |
+| **CreateCardModal** | Form to create a card | `<Modal>` wrapping `<form>`: message, GIPHY search + pick, author | `isOpen`, `onClose()`, `onCreate(card)` (BoardPage) | controlled fields, `gifQuery`, `gifResults`, `selectedGif`, `manualUrl`, `searching`, `submitting`, `formError` | type, search gif, pick gif, submit, cancel |
+| **Modal** *(new, M1)* | Reusable overlay shell (backdrop, close btn, Escape) | `<div class=modal-backdrop>` → `<div class=modal>` + children | `isOpen`, `onClose()`, `title`, `children` (the two create modals) | none | backdrop click / Escape / close btn → `onClose` |
 
-> **Note:** Routing requires `react-router-dom` (not yet installed). Add in Milestone 1:
-> `npm install react-router-dom` inside `frontend/`.
+> **Note (updated M1):** Routing uses `react-router-dom` v7 (installed in
+> Milestone 1). Routes: `/` → `HomePage` (with `Banner`), `/boards/:boardId` →
+> `BoardPage`. `Header`/`Footer` are persistent around the routed page in `App`.
+>
+> **New shared component (M1): `Modal`.** Not in the original spec — extracted as a
+> reusable overlay shell (backdrop, close button, Escape-to-close) wrapped by both
+> `CreateBoardModal` and `CreateCardModal`. See Decisions Log.
+>
+> **Milestone 1 data layer:** Since the backend doesn't exist until Milestone 2, the
+> frontend talks to a mock API module (`src/api/client.js`) that mirrors the
+> Section 2 contracts exactly but is backed by `localStorage`. In Milestone 3 the
+> bodies are swapped for `fetch` calls and the components stay unchanged. GIPHY
+> search lives in `src/api/giphy.js` (needs `VITE_GIPHY_API_KEY`; falls back to a
+> manual gif-URL input when no key is set).
 
 ---
 
@@ -172,6 +185,9 @@ Two models. `Board` has many `Card`s; deleting a board cascades to its cards.
 | `isCreateOpen` (card) | bool / `false` | BoardPage | CreateCardButton click / modal close |
 | `selectedGif` | string / `""` | CreateCardModal | user picks a gif from GIPHY results |
 | `gifResults` | array / `[]` | CreateCardModal | GIPHY search returns results |
+| `gifQuery` | string / `""` | CreateCardModal | user types in the GIPHY search box |
+| `manualUrl` *(M1)* | string / `""` | CreateCardModal | gif-URL fallback typed when no GIPHY key |
+| `submitting` *(M1)* | bool / `false` | Create*Modal | true while the async create call is in flight |
 | `loading` | bool / `false` | HomePage, BoardPage | before/after each fetch |
 | `error` | string / `""` | HomePage, BoardPage | a fetch fails |
 | `theme` *(stretch)* | `"light"`/`"dark"` | App | dark-mode toggle; persisted to localStorage |
@@ -185,12 +201,38 @@ without a manual refresh.
 ---
 
 ## Decisions Log — Frontend (Milestone 1)
-<!-- Fill in after building the frontend. -->
-- **Component that diverged most from the original spec**:
-  **What I changed**:
-- **State variable I needed that wasn't in the original spec**:
-  **Which component owns it**:
-- **Prop that didn't match the API response shape and required adjustment**:
+- **Component that diverged most from the original spec**: `CreateBoardModal` /
+  `CreateCardModal` — both originally specced as standalone modal components.
+  **What I changed**: Extracted a shared `Modal` component (overlay, backdrop-click
+  + Escape to close, header/close button) so the two forms only own their fields and
+  validation, not duplicated overlay markup. The two create-modal components now
+  render their forms *inside* `<Modal>`. Added `Modal` to the component hierarchy.
+- **State variable I needed that wasn't in the original spec**: `submitting` (a
+  boolean) in both `CreateBoardModal` and `CreateCardModal`, plus `manualUrl` in
+  `CreateCardModal` (gif-URL fallback when no GIPHY key is configured).
+  **Which component owns it**: the respective modal components. `submitting`
+  disables the submit button and shows "Creating…/Adding…" while the async create
+  call resolves; this wasn't anticipated at spec time but is needed to prevent
+  double-submits.
+- **Prop that didn't match the API response shape and required adjustment**: none
+  yet — components consume the documented field names (`imageUrl`, `gifUrl`,
+  `upvotes`, `createdAt`) directly, because the Milestone 1 mock client
+  (`src/api/client.js`) returns exactly the Section 2 response shapes. The real
+  test of this comes in Milestone 3 when the Express backend is wired in.
+
+**Other intentional notes (M1):**
+- **Board image is optional**, with a category-based placeholder applied when the
+  field is left blank (honoring the Section 2 `POST /boards` contract:
+  `imageUrl` optional, default placeholder). The Milestone 1 feature list phrases
+  image as "required"; the spec is the source of truth here, so it stays optional
+  with a sensible default rather than blocking board creation.
+- **Filtering & search use `GET /boards` query params** (`category`, `recent`,
+  `search`) per the spec, handled in the mock client — not client-side array
+  filtering. HomePage rebuilds the query and re-fetches when `filter`/`searchQuery`
+  change, so the Milestone 3 swap to a real backend needs no frontend logic change.
+- **Real-time updates**: after a successful create/delete/upvote, the owning page
+  updates its `boards`/`cards` state locally (and HomePage re-fetches to respect the
+  active filter), so the UI updates with no manual refresh.
 
 ## Spec Reconciliation — Backend (Milestone 2)
 <!-- Fill in after building the backend. -->
