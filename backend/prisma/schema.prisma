@@ -1,0 +1,33 @@
+// Kudos Board — Prisma schema
+// Implements Section 3 (Database Schema Spec) of planning.md.
+// Board (1) ──< (many) Card, with cascade delete.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Board {
+  id        Int      @id @default(autoincrement())
+  title     String
+  category  String // celebration / thank-you / inspiration
+  author    String?
+  imageUrl  String? // placeholder default applied in the app layer
+  createdAt DateTime @default(now()) // used for the "Recent" filter
+  cards     Card[]
+}
+
+model Card {
+  id        Int      @id @default(autoincrement())
+  message   String
+  gifUrl    String // from GIPHY
+  author    String?
+  upvotes   Int      @default(0)
+  createdAt DateTime @default(now())
+  boardId   Int
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+}

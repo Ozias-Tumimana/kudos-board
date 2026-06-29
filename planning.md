@@ -235,21 +235,53 @@ without a manual refresh.
   active filter), so the UI updates with no manual refresh.
 
 ## Spec Reconciliation — Backend (Milestone 2)
-<!-- Fill in after building the backend. -->
+Backend implemented in `backend/` (Express 5 + Prisma 6 + PostgreSQL). All routes
+smoke-tested with curl (22/22 checks pass: success cases, validation 400s, 404s,
+and cascade delete). Server entry: `backend/index.js`; routes in `backend/routes/`;
+validation in `backend/middleware/validate.js`; schema in `backend/prisma/schema.prisma`.
+
 ### Endpoints verified
-- `GET /boards` —
-- `POST /boards` —
-- `DELETE /boards/:id` —
-- `GET /boards/:id/cards` —
-- `POST /cards` —
-- `PATCH /cards/:id/upvote` —
-- `DELETE /cards/:id` —
+- `GET /boards` — ✅ matches spec. Supports `?category=`, `?recent=true` (take 6,
+  ordered by `createdAt desc`), and `?search=` (case-insensitive `contains` on title).
+- `POST /boards` — ✅ matches spec. 201 + created board; 400 if `title`/`category`
+  missing or `category` not in {celebration, thank-you, inspiration}; omitted
+  `imageUrl` gets a placeholder default.
+- `GET /boards/:id` — ✅ matches spec. 200 board; 404 if not found (incl. non-numeric id).
+- `DELETE /boards/:id` — ✅ matches spec. 200 `{ message: "Board deleted" }`; 404 if
+  not found. Cards cascade-delete via the schema relation (verified).
+- `GET /boards/:id/cards` — ✅ matches spec. 200 array; 404 if board not found.
+- `POST /cards` — ✅ matches spec. 201 + card (`upvotes` defaults to 0); 400 if
+  `message`/`gifUrl`/`boardId` missing; 404 if board not found.
+- `PATCH /cards/:id/upvote` — ✅ matches spec. 200 updated card; increments by 1;
+  multiple upvotes allowed (verified count 0→3); 404 if card not found.
+- `DELETE /cards/:id` — ✅ matches spec. 200 `{ message: "Card deleted" }`; 404 if
+  not found.
+
 ### Schema verified against spec
-- Board model fields match planning.md schema spec:
-- Card model fields match planning.md schema spec:
-- Relationship (Board → Cards) correct:
+- Board model fields match planning.md schema spec: ✅ `id, title, category, author?,
+  imageUrl?, createdAt, cards[]` — exact match.
+- Card model fields match planning.md schema spec: ✅ `id, message, gifUrl, author?,
+  upvotes (@default 0), createdAt, boardId, board` — exact match.
+- Relationship (Board → Cards) correct: ✅ one-to-many with `onDelete: Cascade`
+  (cascade verified by deleting a board with cards and confirming the cards are gone).
+
 ### Gaps found and resolved
+- None. Implementation matches the contracts as written.
+
 ### Intentional spec updates made during backend implementation
+- **Both card-create routes implemented.** The contract listed `POST /cards`
+  *(or `POST /boards/:id/cards`)`. I implemented **both**: `POST /cards` takes
+  `boardId` in the body; `POST /boards/:id/cards` takes it from the URL path.
+  Frontend (Milestone 3) can use whichever is cleaner — `POST /cards` with
+  `boardId` is the primary one to integrate against.
+- **Default board image.** `imageUrl` is optional; when omitted, the server stores
+  `https://placehold.co/600x400?text=Kudos+Board` so the grid always has an image.
+- **Tooling note (not a contract change).** `npm install prisma` now pulls Prisma 7
+  (new generator + `prisma.config.ts`). I pinned **Prisma 6** for the conventional
+  `@prisma/client` import and `env("DATABASE_URL")` schema that the spec and CodePath
+  tutorials assume. Teammates: run `npm install` in `backend/` to get the pinned version.
+- **Error shape.** All error responses are JSON `{ "error": "<message>" }` with the
+  status codes above; unhandled DB failures return `500 { "error": "Internal server error" }`.
 
 ## Final Spec Reconciliation — Full Pipeline (Milestone 3)
 <!-- Fill in after connecting frontend + backend. -->
